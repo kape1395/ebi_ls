@@ -1,5 +1,7 @@
+.kateproject.d/
 .eunit
 deps
+ebin
 *.o
 *.beam
 *.plt

@@ -1,0 +1,21 @@
+#/bin/bash
+CFG=$1
+DIR=$2
+shift 2
+
+bio-solver --simulate $CFG $DIR "$@" > $DIR.log 2>&1
+RES=$?
+
+if [[ $RES == 0 ]] ; then
+    STEADY=$(tail -n 1 $DIR/currentDensity)
+    mv $DIR.log $DIR/log
+    tar -czf $DIR.tar.gz $DIR
+    rm -rf $CFG $DIR
+    echo -ne "DONE\t$STEADY\n"
+    exit 0
+else
+    mv $DIR.log $DIR.log-error-$(date --rfc-3339=s | sed 's/ /T/')
+    rm -rf $CFG $DIR
+    echo ERROR
+    exit $RES
+fi

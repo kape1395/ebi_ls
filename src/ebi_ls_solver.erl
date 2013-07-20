@@ -55,7 +55,7 @@ start_link(SolverIndex, WorkDir, PortName) ->
     work_dir,       %%  Work dir.
     port_name,      %%  Port program name.
     port,           %%  Current port.
-    model           %%  Current model.
+    sim             %%  Current simulation.
 }).
 
 
@@ -67,11 +67,11 @@ start_link(SolverIndex, WorkDir, PortName) ->
 %%
 %%
 %%
--spec solve(pid(), #model{})
+-spec solve(pid(), #simulation{})
         -> ok | {error, Reason :: term()}.
 
-solve(Pid, Model) ->
-    gen_fsm:sync_send_event(Pid, {solve, Model}).
+solve(Pid, Simulation) ->
+    gen_fsm:sync_send_event(Pid, {solve, Simulation}).
 
 
 
@@ -104,15 +104,15 @@ starting(start, StateData) ->
 %%
 %%  FSM State: waiting
 %%
-waiting({solve, Model}, _From, StateData) ->
-    {ok, NewStateData} = start_solver(Model, StateData),
+waiting({solve, Simulation}, _From, StateData) ->
+    {ok, NewStateData} = start_solver(Simulation, StateData),
     {reply, ok, solving, NewStateData}.
 
 
 %%
 %%  FSM State: solving
 %%
-solving({solve, _Model}, _From, StateData) ->
+solving({solve, _Simulation}, _From, StateData) ->
     {reply, {error, bussy}, solving, StateData}.
 
 
@@ -123,13 +123,13 @@ solving({solve, _Model}, _From, StateData) ->
 handle_info({Port, {data, {eol, Line}}}, StateName = solving, StateData = #state{port = Port}) ->
     ok = handle_solver_response(Line, StateData),
     NewStateData = StateData#state{
-        model = undefined
+        sim = undefined
     },
     {next_state, StateName, NewStateData};
 
-handle_info({'EXIT', Port, _PosixCode}, solving, StateData = #state{port = Port, model = Model}) ->
-    case Model of
-        #model{} ->
+handle_info({'EXIT', Port, _PosixCode}, solving, StateData = #state{port = Port, sim = Simulation}) ->
+    case Simulation of
+        #simulation{} ->
             ok = handle_solver_response("ERROR", StateData);
         undefined ->
             ok
@@ -137,7 +137,7 @@ handle_info({'EXIT', Port, _PosixCode}, solving, StateData = #state{port = Port,
     ok = request_new_job(),
     NewStateData = StateData#state{
         port = undefined,
-        model = undefined
+        sim = undefined
     },
     {next_state, waiting, NewStateData}.
 
@@ -186,17 +186,20 @@ request_new_job() ->
 %%
 %%  Start the solver program.
 %%
-start_solver(Model, StateData) ->
+start_solver(Simulation, StateData) ->
     #state{
         port_name = PortName,
         work_dir = WorkDir
     } = StateData,
-    #model{
-        ref = ModelRef,
-        parameters = ModelParams
-    } = Model,
-    CfgName = ModelRef ++ ".cfg.xml",
-    DirName = ModelRef,
+    #simulation{
+        id = SimulationId,
+        model = #model{
+            ref = ModelRef,
+            parameters = ModelParams
+        }
+    } = Simulation,
+    CfgName = SimulationId ++ ".cfg.xml",
+    DirName = SimulationId,
     SymbolArgs = [ format_symbol_arg(P) || P <- ModelParams ],
 
     {ok, CfgBody} = ebi_store:get_model_representation(ModelRef, ?SUPPORTED_MODEL_TYPE),    % TODO
@@ -210,24 +213,24 @@ start_solver(Model, StateData) ->
     ]),
     NewStateData = StateData#state{
         port = Port,
-        model = Model
+        sim = Simulation
     },
     {ok, NewStateData}.
 
 
-handle_solver_response(ResponseLine, #model{ref = ModelRef}) ->
+handle_solver_response(ResponseLine, #state{sim = #simulation{id = SimulationId}}) ->
     [Status | Other] = string:tokens(ResponseLine, "\t\n "),
     case Status of
         "DONE" ->
             [TimeStr, _StepCountStr, CurrentDensityStr] = Other,
             ok = ebi_store:simulation_done(             % TODO
-                ModelRef,
-                {file, ModelRef ++ ".tar.gz"},
+                SimulationId,
+                {file, SimulationId ++ ".tar.gz"},
                 to_number(TimeStr),
                 to_number(CurrentDensityStr)
             );
         "ERROR" ->
-            ok = ebi_store:simulation_failed(ModelRef)  % TODO
+            ok = ebi_store:simulation_failed(SimulationId)  % TODO
     end.
 
 

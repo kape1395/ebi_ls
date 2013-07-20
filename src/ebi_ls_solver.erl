@@ -180,7 +180,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%  Ask queue for new job.
 %%
 request_new_job() ->
-    ok = ebi_queue:solver_ready(self(), [?SUPPORTED_MODEL_TYPE]).       % TODO
+    ok = ebi_queue:solver_ready(self(), [?SUPPORTED_MODEL_TYPE]).
 
 
 %%

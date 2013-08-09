@@ -193,16 +193,14 @@ start_solver(Simulation, StateData) ->
     } = StateData,
     #simulation{
         id = SimulationId,
-        model = #model{
-            ref = ModelRef,
-            parameters = ModelParams
-        }
+        model = #model{ref = ModelRef},
+        params = SimulationParams
     } = Simulation,
     CfgName = SimulationId ++ ".cfg.xml",
     DirName = SimulationId,
-    SymbolArgs = [ format_symbol_arg(P) || P <- ModelParams ],
+    SymbolArgs = [ format_symbol_arg(P) || P <- SimulationParams ],
 
-    {ok, CfgBody} = ebi_store:get_model_representation(ModelRef, ?SUPPORTED_MODEL_TYPE),    % TODO
+    {ok, CfgBody} = ebi_store:get_model_representation(ModelRef, [?SUPPORTED_MODEL_TYPE]),    % TODO
     ok = file:write_file(CfgName, CfgBody),
 
     Port = erlang:open_port({spawn_executable, PortName}, [
